@@ -9,8 +9,6 @@ def get_rw_pair():
     fin, fout = os.pipe()
     os.set_inheritable(fin, True)
     os.set_inheritable(fout, True)
-    fin = io.FileIO(fin, 'r')
-    fout = io.FileIO(fout, 'w')
     return fin, fout
 
 
@@ -20,17 +18,17 @@ def fork_with_piped_io(f, child_close):
     pid = os.fork()
     if pid == 0:
         for x in child_close:
-            x.close()
-        fin_w.close()
-        fout_r.close()
+            os.close(x)
+        os.close(fin_w)
+        os.close(fout_r)
         try:
             f(fin_r, fout_w)
         finally:
-            fin_r.close()
-            fout_w.close()
+            os.close(fin_r)
+            os.close(fout_w)
             sys.exit()
-    fin_r.close()
-    fout_w.close()
+    os.close(fin_r)
+    os.close(fout_w)
     return pid, fin_w, fout_r
 
 
@@ -40,16 +38,16 @@ def _round_robin_input(file_in, files_out, child_close=None):
     pid = os.fork()
     if pid == 0:  # child
         for x in child_close:
-            x.close()
+            os.close(x)
         try:
-            _split_merge.split_lines(file_in.fileno(), [x.fileno() for x in files_out])
+            _split_merge.split_lines(file_in, [x for x in files_out])
         except:
             exit_code = 1
         else:
             exit_code = 0
-        file_in.close()
+        os.close(file_in)
         for out in files_out:
-            out.close()
+            os.close(out)
         sys.exit(exit_code)
     return pid  # parent
 
@@ -65,23 +63,23 @@ def _round_robin_output(files_in, file_out=None, child_close=None):
     pid = os.fork()
     if pid == 0:  # child
         for x in child_close:
-            x.close()
+            os.close(x)
         if file_out is None:
-            fin.close()
+            os.close(fin)
         try:
-            _split_merge.merge_lines(fout.fileno(), [x.fileno() for x in files_in])
+            _split_merge.merge_lines(fout, [x for x in files_in])
         except:
             exit_code = 1
         else:
             exit_code = 0
-        fout.close()
+        os.close(fout)
         for x in files_in:
-            x.close()
+            os.close(x)
         sys.exit(exit_code)
     # parent
     if file_out is not None:
         return pid, None
-    fout.close()
+    os.close(fout)
     return pid, fin
 
 
@@ -99,5 +97,5 @@ def round_robin_split(func, file_in, file_out=None, N=1):
     pid, file_out = _round_robin_output(outs, file_out=file_out, child_close=ins)
     pids.append(pid)
     for x in ins + outs:
-        x.close()
+        os.close(x)
     return pids, file_out

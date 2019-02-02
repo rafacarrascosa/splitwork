@@ -20,19 +20,19 @@ def cat(fin, fout):
 
 def execvp_subprocess(path, args):
     def __subprocess(fin, fout):
-        os.dup2(fin.fileno(), sys.stdin.fileno(), inheritable=True)
-        os.dup2(fout.fileno(), sys.stdout.fileno(), inheritable=True)
+        os.dup2(fin, sys.stdin.fileno(), inheritable=True)
+        os.dup2(fout, sys.stdout.fileno(), inheritable=True)
         os.execvp(path, args)
     return __subprocess
 
 
 if __name__ == "__main__":
-    stdin = io.FileIO(sys.stdin.fileno())
-    stdout = io.FileIO(sys.stdout.fileno(), "w")
+    stdin = sys.stdin.fileno()
+    stdout = sys.stdout.fileno()
     args = sys.argv[1:]
     if not args:
         raise Exception("Subcommand needed")
     f = execvp_subprocess(args[0], args)
-    pids, fout = splitwork.round_robin_split(f, stdin, file_out=stdout, N=10)
+    pids, _ = splitwork.round_robin_split(f, stdin, file_out=stdout, N=10)
     for pid in pids:
         os.waitpid(pid, 0)
