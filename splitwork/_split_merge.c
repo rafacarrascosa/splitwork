@@ -64,7 +64,7 @@ static inline int line_reader_at_end_of_buffer(LineReader *r) {
 
 static inline int _split_lines_impl(int fd, int *out_fds, size_t n) {
   size_t i, size;
-  ssize_t written = 0;
+  ssize_t written = 1;
   int has_newline;
   LineReader reader;
   line_reader_init(&reader, fd);
@@ -119,7 +119,7 @@ static inline LineReader * _get_next_ready(LineReader *readers, size_t n, size_t
 
 static inline int _merge_lines_impl(int fd, LineReader *readers, size_t n) {
   size_t i = 0, still_open, size;
-  ssize_t result, written = 0;
+  ssize_t result, written = 1;
   int has_newline;
   LineReader *current = NULL;
 
@@ -169,6 +169,7 @@ static PyObject * split_lines(PyObject *self, PyObject *args)
 
   n = PyObject_Length(lst);
   if (n <= 0) {
+      PyErr_SetString(PyExc_ValueError, "output file list is empty");
       return NULL;
   }
 
@@ -211,6 +212,7 @@ static PyObject * merge_lines(PyObject *self, PyObject *args)
 
   n = PyObject_Length(lst);
   if (n <= 0) {
+      PyErr_SetString(PyExc_ValueError, "input file list is empty");
       return NULL;
   }
 
