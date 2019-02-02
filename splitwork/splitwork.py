@@ -24,7 +24,7 @@ def fork_with_piped_io(f, child_close):
         finally:
             os.close(fin_r)
             os.close(fout_w)
-            sys.exit()
+            sys.exit(0)
     os.close(fin_r)
     os.close(fout_w)
     return pid, fin_w, fout_r
@@ -97,3 +97,11 @@ def round_robin_split(func, file_in, file_out=None, N=1):
     for x in ins + outs:
         os.close(x)
     return pids, file_out
+
+
+def execvp_subprocess(path, args):
+    def __subprocess(fin, fout):
+        os.dup2(fin, sys.stdin.fileno(), inheritable=True)
+        os.dup2(fout, sys.stdout.fileno(), inheritable=True)
+        os.execvp(path, args)
+    return __subprocess
