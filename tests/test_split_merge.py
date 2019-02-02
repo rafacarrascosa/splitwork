@@ -1,43 +1,11 @@
 import unittest
-import tempfile
 
 import _split_merge
 
-
-def _read(name):
-    with open(name) as f:
-        x = f.read()
-    return x
+from .common import _read, _write, BaseTestSplitwork
 
 
-def _write(name, content):
-    with open(name, "w") as f:
-        f.write(content)
-
-
-class BaseTestSplitlines:
-    def setUp(self):
-        self._tempfiles = []
-
-    def tearDown(self):
-        for x in self._tempfiles:
-            x.close()
-
-    def tempfiles(self, n):
-        handles = [tempfile.NamedTemporaryFile() for _ in range(n)]
-        names = [x.name for x in handles]
-        self._tempfiles += handles
-        return names
-
-    def get_fds(self, paths, mode):
-        if isinstance(paths, str):
-            paths = [paths]
-        handles = [open(name, mode) for name in paths]
-        self._tempfiles += handles
-        return [x.fileno() for x in handles]
-
-
-class TestSplitLines(BaseTestSplitlines, unittest.TestCase):
+class TestSplitLines(BaseTestSplitwork, unittest.TestCase):
     def send_retrieve(self, content, n):
         inname, *outnames = self.tempfiles(n + 1)
         _write(inname, content)
@@ -100,7 +68,7 @@ class TestSplitLines(BaseTestSplitlines, unittest.TestCase):
             _split_merge.split_lines(fd, [])
 
 
-class TestMergeLines(BaseTestSplitlines, unittest.TestCase):
+class TestMergeLines(BaseTestSplitwork, unittest.TestCase):
     def send_retrieve(self, contents):
         *innames, outname = self.tempfiles(len(contents) + 1)
         for content, name in zip(contents, innames):
