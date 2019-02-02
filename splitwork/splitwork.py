@@ -1,7 +1,5 @@
 import os
-import io
 import sys
-import itertools
 import _split_merge
 
 
@@ -41,7 +39,7 @@ def _round_robin_input(file_in, files_out, child_close=None):
             os.close(x)
         try:
             _split_merge.split_lines(file_in, [x for x in files_out])
-        except:
+        except Exception:
             exit_code = 1
         else:
             exit_code = 0
@@ -68,7 +66,7 @@ def _round_robin_output(files_in, file_out=None, child_close=None):
             os.close(fin)
         try:
             _split_merge.merge_lines(fout, [x for x in files_in])
-        except:
+        except Exception:
             exit_code = 1
         else:
             exit_code = 0
