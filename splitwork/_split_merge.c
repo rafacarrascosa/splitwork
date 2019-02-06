@@ -118,6 +118,8 @@ static inline ssize_t writer_flush(Writer *w) {
     left_to_write -= result;
     cursor += result;
   }
+  w->remaining = BLOCK_SIZE;
+  w->cursor = w->buffer;
   return BLOCK_SIZE - w->remaining;
 }
 
@@ -195,7 +197,7 @@ static inline LineReader * _get_next_ready(LineReader *readers, size_t n, size_t
 
 static inline int _merge_lines_impl(int fd, LineReader *readers, size_t n) {
   size_t i = 0, still_open, size;
-  ssize_t result, written = 1;
+  ssize_t written = 1;
   int has_newline;
   LineReader *current = NULL;
   Writer w;
@@ -210,7 +212,11 @@ static inline int _merge_lines_impl(int fd, LineReader *readers, size_t n) {
       break;
     }
     has_newline = line_reader_next_line(current, &size);
-    written = write(fd, current->cursor, size);
+    written = writer_write(&w, current->cursor, size);
+    if (written == -1 && errno == EINTR) {
+      if (PyErr_CheckSignals()) return -1;
+      continue;  /* retry */
+    }
     if (written <= 0) break;
     line_reader_advance(current, written);
     if (has_newline && (written == size)) {
@@ -218,10 +224,13 @@ static inline int _merge_lines_impl(int fd, LineReader *readers, size_t n) {
     } else if (!has_newline &&
                still_open > 1 &&
                line_reader_at_end_of_buffer(current)) {
-      if(line_reader_load_buffer(current) < 0) return -1;
+      if(line_reader_load_buffer(current) < 0) return 1;
       /* When a fd ends without newline and there are still other files open */
       if (current->remaining == 0) {
-        written = write(fd, "\n", 1);
+        written = writer_write(&w, "\n", 1);
+        if (written == -1 && errno == EINTR) {
+          if (PyErr_CheckSignals()) return -1;
+        }
         if (written <= 0) break;
         MARK_AS_CLOSED(current);
         still_open -= 1;
@@ -230,7 +239,19 @@ static inline int _merge_lines_impl(int fd, LineReader *readers, size_t n) {
     }
   }
 
-  if (written == 0) return 1;
+  if (written <= 0) return 1;
+
+  while (w.remaining != BLOCK_SIZE) {
+    written = writer_flush(&w);
+    if (written == -1 && errno == EINTR) {
+      if (PyErr_CheckSignals()) return -1;
+      continue;  /* retry */
+    }
+    if (written < 0) {
+      return 1;
+    }
+  }
+
   return 0;
 }
 
@@ -312,7 +333,7 @@ static PyObject * merge_lines(PyObject *self, PyObject *args)
   result = _merge_lines_impl(fd, readers, n);
   free(readers);
   if (result > 0) {
-    PyErr_SetObject(PyExc_IOError, Py_BuildValue("si", "Read error in file descriptor", readers[result - 1].fd));
+    PyErr_SetString(PyExc_IOError, "read/write error");
     return NULL;
   } else if (result < 0) {
     return NULL;
